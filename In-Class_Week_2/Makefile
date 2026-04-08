@@ -5,7 +5,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pthread
 
 # All source files
-SRCS = spinlock.c compareswap.c
+SRCS = spinlock.c compareswap.c PUSHPOP.c
 
 # Convert .c -> executable names
 TARGETS = $(SRCS:.c=)
