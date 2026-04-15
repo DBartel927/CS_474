@@ -5,7 +5,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pthread
 
 # All source files
-SRCS = arbitrarystorage.c withloopsthistime.c
+SRCS = arbitrarystorage.c withloopsthistime.c split.c coalesce.c
 
 # Convert .c -> executable names
 TARGETS = $(SRCS:.c=)
