@@ -5,7 +5,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pthread
 
 # All source files
-SRCS = stackandheap.c memorygrow.c
+SRCS = stackandheap.c memorygrow.c bitwise.c po2a.c a2po.c
 
 # Convert .c -> executable names
 TARGETS = $(SRCS:.c=)
