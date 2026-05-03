@@ -59,6 +59,59 @@ unsigned char get_page_table(int proc_num)
     return mem[ptp_addr];
 }
 
+void free_page(int page)
+{
+    int addr = get_address(0, page);
+    mem[addr] = 0;
+}
+
+int virtual_to_physical(int proc_num, int vaddr)
+{
+    int page_table = get_page_table(proc_num);
+
+    int virtual_page = vaddr >> PAGE_SHIFT;
+    int offset = vaddr & (PAGE_SIZE - 1);
+    int page_table_addr = get_address(page_table, virtual_page);
+    int physical_page = mem[page_table_addr];
+
+    return get_address(physical_page, offset);
+}
+
+void kill_process(int proc_num)
+{
+    int page_table = get_page_table(proc_num);
+
+    for (int virtual_page = 0; virtual_page < PAGE_COUNT; virtual_page++) {
+        int page_table_addr = get_address(page_table, virtual_page);
+        int physical_page = mem[page_table_addr];
+
+        if (physical_page != 0) {
+            free_page(physical_page);
+        }
+    }
+
+    free_page(page_table);
+
+    int ptp_addr = get_address(0, PTP_OFFSET + proc_num);
+    mem[ptp_addr] = 0;
+}
+
+void store_byte(int proc_num, int vaddr, int val)
+{
+    int addr = virtual_to_physical(proc_num, vaddr);
+    mem[addr] = val;
+
+    printf("Store proc %d: %d => %d, value=%d\n", proc_num, vaddr, addr, val);
+}
+
+void load_byte(int proc_num, int vaddr)
+{
+    int addr = virtual_to_physical(proc_num, vaddr);
+    int val = mem[addr];
+
+    printf("Load proc %d: %d => %d, value=%d\n", proc_num, vaddr, addr, val);
+}
+
 //
 // Allocate pages for a new process
 //
@@ -69,7 +122,7 @@ void new_process(int proc_num, int page_count)
     int page_table_page = allocate_page();
 
     if (page_table_page == NO_PAGE) {
-        fprintf(stderr, "Error: no free page for page table\n");
+        printf("OOM: proc %d: page table\n", proc_num);
         return;
     }
 
@@ -80,7 +133,7 @@ void new_process(int proc_num, int page_count)
         int data_page = allocate_page();
 
         if (data_page == NO_PAGE) {
-            fprintf(stderr, "Error: no free page for data page\n");
+            printf("OOM: proc %d: data page\n", proc_num);
             return;
         }
 
@@ -158,9 +211,21 @@ int main(int argc, char *argv[])
             int proc_num = atoi(argv[++i]);
             int page_count = atoi(argv[++i]);
             new_process(proc_num, page_count);
-        }
-        else {
+        } else if (strcmp(argv[i], "kp") == 0) {
+            int proc_num = atoi(argv[++i]);
+            kill_process(proc_num);
+        } else if (strcmp(argv[i], "sb") == 0) {
+            int proc_num = atoi(argv[++i]);
+            int vaddr = atoi(argv[++i]);
+            int val = atoi(argv[++i]);
+            store_byte(proc_num, vaddr, val);
+        } else if (strcmp(argv[i], "lb") == 0) {
+            int proc_num = atoi(argv[++i]);
+            int vaddr = atoi(argv[++i]);
+            load_byte(proc_num, vaddr);
+        } else {
             fprintf(stderr, "%s Unknown command: %s\n", argv[0], argv[i]);
+            return 1;
         }
 
         // TODO: more command line arguments
