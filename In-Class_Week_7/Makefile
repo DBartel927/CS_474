@@ -5,7 +5,7 @@ CC = gcc
 CFLAGS = -Wall -Wextra -pthread
 
 # All source files
-SRCS = bitmapmanip.c firstzero.c
+SRCS = bitmapmanip.c firstzero.c parity.c datarecover.c
 
 # Convert .c -> executable names
 TARGETS = $(SRCS:.c=)
