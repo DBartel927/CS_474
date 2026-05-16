@@ -1,21 +1,9 @@
-# VVSFS Project 6
+# Project 7 Additions
 
-This project implements the beginning of a simple file system.
+New functionality includes:
 
-## What it does
-
-The program can:
-
-- Open and create a simulated disk image file
-- Close the image file
-- Write a 4096-byte block to the image
-- Read a 4096-byte block from the image
-- Run tests using `ctest.h`
-
-## Files
-
-- `image.c` / `image.h`: image file open and close functions
-- `block.c` / `block.h`: block read and write functions
-- `testfs.c`: test program
-- `Makefile`: builds the project and test executable
-- `ctest.h`: C testing, provided by the magnanimous Beej Jorgenson
+- `set_free()` to set or clear a bit in a map block
+- `find_free()` to find the lowest-numbered free bit
+- `ialloc()` to allocate an inode from block 1
+- `alloc()` to allocate a data block from block 2
+- `mkfs()` to initialize the first version of the file system image
