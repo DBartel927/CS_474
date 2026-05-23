@@ -1,9 +1,11 @@
-# Project 7 Additions
+# Project 8 Additions
 
-New functionality includes:
+The program can now:
 
-- `set_free()` to set or clear a bit in a map block
-- `find_free()` to find the lowest-numbered free bit
-- `ialloc()` to allocate an inode from block 1
-- `alloc()` to allocate a data block from block 2
-- `mkfs()` to initialize the first version of the file system image
+Read and write inode data to disk
+Store inode data in memory using in-core inodes
+Allocate inodes using ialloc()
+Retrieve in-core inodes using iget()
+Release in-core inodes using iput()
+Read and write big-endian values using the helper functions in pack.c
+Run tests using ctest.

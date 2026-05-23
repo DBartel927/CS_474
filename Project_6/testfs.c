@@ -7,6 +7,7 @@
 #include "free.h"
 #include "inode.h"
 #include "mkfs.h"
+#include "pack.h"
 
 void test_image_open_close(void)
 {
@@ -108,17 +109,43 @@ void test_find_free_finds_first_clear_bit(void)
     CTEST_ASSERT(find_free(block) == 15, "find_free() should return 15 when bits 0-7 are set and bit 8 is clear");
 }
 
-void test_ialloc_allocates_first_free_inode(void)
+// void test_ialloc_allocates_first_free_inode(void)
+// {
+//     CTEST_ASSERT(image_open("test.img", 1) >= 0, "image file should open for ialloc test");
+
+//     mkfs();
+
+//     int inode_num = ialloc();
+//     CTEST_ASSERT(inode_num == 0, "ialloc() should allocate the first free inode (0)");
+
+//     inode_num = ialloc();
+//     CTEST_ASSERT(inode_num == 1, "ialloc() should allocate the next free inode (1)");
+
+//     image_close();
+// }
+
+void test_ialloc_returns_initialized_inode(void)
 {
-    CTEST_ASSERT(image_open("test.img", 1) >= 0, "image file should open for ialloc test");
+    CTEST_ASSERT(image_open("test.img", 1) >= 0, "image should open for ialloc test");
 
     mkfs();
+    incore_free_all();
 
-    int inode_num = ialloc();
-    CTEST_ASSERT(inode_num == 0, "ialloc() should allocate the first free inode (0)");
+    struct inode *in = ialloc();
 
-    inode_num = ialloc();
-    CTEST_ASSERT(inode_num == 1, "ialloc() should allocate the next free inode (1)");
+    CTEST_ASSERT(in != NULL, "ialloc should return an in-core inode");
+    CTEST_ASSERT(in->inode_num == 0, "first ialloc should allocate inode 0");
+    CTEST_ASSERT(in->ref_count == 1, "allocated inode should have ref_count 1");
+    CTEST_ASSERT(in->size == 0, "allocated inode size should be initialized to 0");
+    CTEST_ASSERT(in->owner == 0, "allocated inode owner should be initialized to 0");
+    CTEST_ASSERT(in->permissions == 0, "allocated inode permissions should be initialized to 0");
+    CTEST_ASSERT(in->flags == 0, "allocated inode flags should be initialized to 0");
+
+    for (int i = 0; i < INODE_PTR_COUNT; i++) {
+        CTEST_ASSERT(in->block_ptr[i] == 0, "allocated inode block pointers should be 0");
+    }
+
+    iput(in);
 
     image_close();
 }
@@ -155,6 +182,114 @@ void test_mkfs_initializes_image(void)
     image_close();
 }
 
+void test_pack(void)
+{
+    unsigned char buf[8];
+
+    write_u32(buf, 0x12345678);
+    CTEST_ASSERT(read_u32(buf) == 0x12345678, "read_u32() should return the value written by write_u32()");
+
+    write_u16(buf, 0xabcd);
+    CTEST_ASSERT(read_u16(buf) == 0xabcd, "read_u16() should return the value written by write_u16()");
+
+    write_u8(buf, 0xef);
+    CTEST_ASSERT(read_u8(buf) == 0xef, "read_u8() should return the value written by write_u8()");
+}
+
+void test_incore_find_free_and_find(void) {
+    incore_free_all();
+    struct inode *in = incore_find_free();
+    CTEST_ASSERT(in != NULL, "incore_find_free() should return a free inode");
+    in->ref_count = 1;
+    in->inode_num = 12;
+    in->size = 555;
+    struct inode *found = incore_find(12);
+    CTEST_ASSERT(found == in, "incore_find() should find the inode by its number");
+    CTEST_ASSERT(found->size == 555, "incore_find() should return the correct inode with the correct size");
+}
+
+void test_write_and_read_inode(void)
+{
+    CTEST_ASSERT(image_open("test.img", 1) >= 0, "image should open for inode read/write test");
+
+    mkfs();
+
+    struct inode in;
+    struct inode out;
+
+    in.size = 12345;
+    in.owner = 77;
+    in.permissions = 6;
+    in.flags = 2;
+    in.link_count = 3;
+    in.inode_num = 5;
+    in.ref_count = 99;
+
+    for (int i = 0; i < INODE_PTR_COUNT; i++) {
+        in.block_ptr[i] = i + 100;
+    }
+
+    write_inode(&in);
+    read_inode(&out, 5);
+
+    CTEST_ASSERT(out.size == 12345, "inode size should survive write/read");
+    CTEST_ASSERT(out.owner == 77, "inode owner should survive write/read");
+    CTEST_ASSERT(out.permissions == 6, "inode permissions should survive write/read");
+    CTEST_ASSERT(out.flags == 2, "inode flags should survive write/read");
+    CTEST_ASSERT(out.link_count == 3, "inode link count should survive write/read");
+    CTEST_ASSERT(out.block_ptr[0] == 100, "block pointer 0 should survive write/read");
+    CTEST_ASSERT(out.block_ptr[15] == 115, "block pointer 15 should survive write/read");
+    CTEST_ASSERT(out.inode_num == 5, "read_inode should set inode_num");
+
+    image_close();
+}
+
+void test_iget_and_iput(void)
+{
+    CTEST_ASSERT(image_open("test.img", 1) >= 0, "image should open for iget/iput test");
+
+    mkfs();
+    incore_free_all();
+
+    struct inode original;
+
+    original.size = 777;
+    original.owner = 42;
+    original.permissions = 7;
+    original.flags = 1;
+    original.link_count = 2;
+    original.inode_num = 9;
+    original.ref_count = 0;
+
+    for (int i = 0; i < INODE_PTR_COUNT; i++) {
+        original.block_ptr[i] = i + 20;
+    }
+
+    write_inode(&original);
+
+    struct inode *in1 = iget(9);
+    CTEST_ASSERT(in1 != NULL, "iget should load inode into core");
+    CTEST_ASSERT(in1->size == 777, "iget should load inode data");
+    CTEST_ASSERT(in1->ref_count == 1, "iget should set ref_count to 1");
+
+    struct inode *in2 = iget(9);
+    CTEST_ASSERT(in2 == in1, "iget should return existing in-core inode");
+    CTEST_ASSERT(in1->ref_count == 2, "second iget should increment ref_count");
+
+    iput(in1);
+    CTEST_ASSERT(in1->ref_count == 1, "first iput should decrement ref_count");
+
+    in1->size = 888;
+    iput(in1);
+    CTEST_ASSERT(in1->ref_count == 0, "second iput should drop ref_count to 0");
+
+    struct inode check;
+    read_inode(&check, 9);
+    CTEST_ASSERT(check.size == 888, "iput should write inode when ref_count reaches 0");
+
+    image_close();
+}
+
 int main(void)
 {
     CTEST_VERBOSE(1);
@@ -164,9 +299,12 @@ int main(void)
     // test_multiple_blocks();
     test_set_free_sets_and_clears_bits();
     test_find_free_finds_first_clear_bit();
-    test_ialloc_allocates_first_free_inode();
     test_alloc_allocates_first_free_block();
     test_mkfs_initializes_image();
+    test_pack();
+    test_incore_find_free_and_find();
+    test_write_and_read_inode();
+    test_iget_and_iput();
 
     CTEST_RESULTS();
     CTEST_EXIT();
