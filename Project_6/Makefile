@@ -6,7 +6,7 @@ ARFLAGS = rcs
 LIB = libvvsfs.a
 TEST = testfs
 
-LIB_OBJS = image.o block.o free.o inode.o mkfs.o pack.o
+LIB_OBJS = image.o block.o free.o inode.o mkfs.o pack.o dir.o ls.o
 TEST_OBJS = testfs.o
 
 all: $(LIB) $(TEST)
@@ -35,7 +35,13 @@ mkfs.o: mkfs.c mkfs.h block.h free.h
 pack.o: pack.c pack.h
 	$(CC) $(CFLAGS) -c pack.c
 
-testfs.o: testfs.c image.h block.h free.h inode.h mkfs.h pack.h ctest.h
+dir.o: dir.c dir.h block.h inode.h pack.h
+	$(CC) $(CFLAGS) -c dir.c
+
+ls.o: ls.c ls.h dir.h
+	$(CC) $(CFLAGS) -c ls.c
+
+testfs.o: testfs.c image.h block.h free.h inode.h mkfs.h pack.h dir.h ls.h ctest.h
 	$(CC) $(CFLAGS) -c testfs.c
 
 test: $(TEST)

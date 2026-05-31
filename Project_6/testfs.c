@@ -8,6 +8,8 @@
 #include "inode.h"
 #include "mkfs.h"
 #include "pack.h"
+#include "dir.h"
+#include "ls.h"
 
 void test_image_open_close(void)
 {
@@ -152,15 +154,20 @@ void test_ialloc_returns_initialized_inode(void)
 
 void test_alloc_allocates_first_free_block(void)
 {
-    CTEST_ASSERT(image_open("test.img", 1) >= 0, "image file should open for alloc test");
+    int block_num;
+
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image file should open for alloc test");
 
     mkfs();
 
-    int block_num = alloc();
-    CTEST_ASSERT(block_num == 7, "alloc() should allocate the first free block (7)");
+    block_num = alloc();
+    CTEST_ASSERT(block_num == 8,
+        "alloc() should allocate the first free block after root directory");
 
     block_num = alloc();
-    CTEST_ASSERT(block_num == 8, "alloc() should allocate the next free block (8)");
+    CTEST_ASSERT(block_num == 9,
+        "alloc() should allocate the next free block");
 
     image_close();
 }
@@ -168,16 +175,22 @@ void test_alloc_allocates_first_free_block(void)
 void test_mkfs_initializes_image(void)
 {
     unsigned char block[BLOCK_SIZE];
-    CTEST_ASSERT(image_open("test.img", 1) >= 0, "image file should open for mkfs test");
+
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image file should open for mkfs test");
 
     mkfs();
 
     bread(1, block);
-    CTEST_ASSERT(block[0] == 0x00, "block 1 should be initialized to all zeros");
+    CTEST_ASSERT(block[0] == 0x01,
+        "inode map should have inode 0 allocated for root directory");
 
     bread(2, block);
-    CTEST_ASSERT(block[0] == 0x7f, "block 2 should have the first 7 bits set and the last bit clear");
-    CTEST_ASSERT(block[1] == 0x00, "block 2 should have the second byte set to all zeros");
+    CTEST_ASSERT(block[0] == 0xff,
+        "block map should mark blocks 0 through 7 used");
+
+    CTEST_ASSERT(block[1] == 0x00,
+        "block map second byte should still be zero");
 
     image_close();
 }
@@ -290,6 +303,89 @@ void test_iget_and_iput(void)
     image_close();
 }
 
+void test_mkfs_creates_root_directory(void)
+{
+    struct inode in;
+
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image should open for root directory test");
+
+    mkfs();
+
+    read_inode(&in, 0);
+
+    CTEST_ASSERT(in.flags == DIRECTORY_FLAG,
+        "root inode should be a directory");
+
+    CTEST_ASSERT(in.size == 64,
+        "root directory should have two directory entries");
+
+    CTEST_ASSERT(in.block_ptr[0] != 0,
+        "root directory should have a data block");
+
+    image_close();
+}
+
+void test_directory_open(void)
+{
+    struct directory *dir;
+
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image should open for directory open test");
+
+    mkfs();
+
+    dir = directory_open(0);
+
+    CTEST_ASSERT(dir != NULL,
+        "directory_open should return a directory pointer");
+
+    CTEST_ASSERT(dir->offset == 0,
+        "directory offset should start at 0");
+
+    directory_close(dir);
+
+    image_close();
+}
+
+void test_directory_get(void)
+{
+    struct directory *dir;
+    struct directory_entry ent;
+
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image should open for directory get test");
+
+    mkfs();
+
+    dir = directory_open(0);
+
+    CTEST_ASSERT(directory_get(dir, &ent) == 0,
+        "directory_get should read the first entry");
+
+    CTEST_ASSERT(ent.inode_num == 0,
+        "first entry should point to inode 0");
+
+    CTEST_ASSERT(strcmp(ent.name, ".") == 0,
+        "first entry should be .");
+
+    CTEST_ASSERT(directory_get(dir, &ent) == 0,
+        "directory_get should read the second entry");
+
+    CTEST_ASSERT(ent.inode_num == 0,
+        "second entry should point to inode 0");
+
+    CTEST_ASSERT(strcmp(ent.name, "..") == 0,
+        "second entry should be ..");
+
+    CTEST_ASSERT(directory_get(dir, &ent) == -1,
+        "directory_get should fail at the end of the directory");
+
+    directory_close(dir);
+
+    image_close();
+}
+
 int main(void)
 {
     CTEST_VERBOSE(1);
@@ -305,6 +401,9 @@ int main(void)
     test_incore_find_free_and_find();
     test_write_and_read_inode();
     test_iget_and_iput();
+    test_mkfs_creates_root_directory();
+    test_directory_open();
+    test_directory_get();
 
     CTEST_RESULTS();
     CTEST_EXIT();
