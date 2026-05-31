@@ -1,11 +1,10 @@
-# Project 8 Additions
+# Project 9 Additions
 
 The program can now:
 
-Read and write inode data to disk
-Store inode data in memory using in-core inodes
-Allocate inodes using ialloc()
-Retrieve in-core inodes using iget()
-Release in-core inodes using iput()
-Read and write big-endian values using the helper functions in pack.c
-Run tests using ctest.
+Create a root directory during mkfs()
+Store directory entries
+Open directories using directory_open()
+Read directory entries using directory_get()
+Close directories using directory_close()
+Display directory contents using ls()
