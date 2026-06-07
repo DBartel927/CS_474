@@ -1,10 +1,13 @@
-# Project 9 Additions
+# Project 10 Additions
 
 The program can now:
 
-Create a root directory during mkfs()
-Store directory entries
-Open directories using directory_open()
-Read directory entries using directory_get()
-Close directories using directory_close()
-Display directory contents using ls()
+Map path names to inodes using namei()
+Return the root inode when given "/"
+Find directories in the root directory using namei()
+Create new directories using directory_make()
+Create . and .. entries for new directories
+Add new directory entries to the parent directory
+Update parent directory sizes when new directories are created
+Reject invalid or unsupported directory paths
+Support opening newly-created directories through namei()

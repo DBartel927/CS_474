@@ -386,6 +386,113 @@ void test_directory_get(void)
     image_close();
 }
 
+void test_namei_root(void)
+{
+    struct inode *in;
+
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image should open for namei root test");
+
+    mkfs();
+
+    in = namei("/");
+
+    CTEST_ASSERT(in != NULL,
+        "namei should return root inode for /");
+
+    CTEST_ASSERT(in->inode_num == 0,
+        "root inode should be inode 0");
+
+    CTEST_ASSERT(in->ref_count > 0,
+        "namei should return an in-core inode with ref_count");
+
+    iput(in);
+
+    image_close();
+}
+
+void test_directory_make_creates_directory(void)
+{
+    struct directory *dir;
+    struct directory_entry ent;
+    int found;
+
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image should open for directory_make test");
+
+    mkfs();
+
+    CTEST_ASSERT(directory_make("/foo") == 0,
+        "directory_make should create /foo");
+
+    found = 0;
+    dir = directory_open(0);
+
+    while (directory_get(dir, &ent) != -1) {
+        if (strcmp(ent.name, "foo") == 0) {
+            found = 1;
+            CTEST_ASSERT(ent.inode_num == 1,
+                "foo should be inode 1");
+        }
+    }
+
+    CTEST_ASSERT(found == 1,
+        "root directory should contain foo");
+
+    directory_close(dir);
+
+    image_close();
+}
+
+void test_namei_finds_root_child(void)
+{
+    struct inode *in;
+
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image should open for namei child test");
+
+    mkfs();
+
+    CTEST_ASSERT(directory_make("/foo") == 0,
+        "directory_make should create /foo");
+
+    in = namei("/foo");
+
+    CTEST_ASSERT(in != NULL,
+        "namei should find /foo");
+
+    CTEST_ASSERT(in->inode_num == 1,
+        "foo should have inode 1");
+
+    CTEST_ASSERT(in->flags == DIRECTORY_FLAG,
+        "foo should be a directory");
+
+    iput(in);
+
+    image_close();
+}
+
+void test_directory_make_rejects_bad_paths(void)
+{
+    CTEST_ASSERT(image_open("test.img", 1) >= 0,
+        "image should open for bad path test");
+
+    mkfs();
+
+    CTEST_ASSERT(directory_make("foo") == -1,
+        "directory_make should reject relative paths");
+
+    CTEST_ASSERT(directory_make("/") == -1,
+        "directory_make should reject root as a new directory");
+
+    CTEST_ASSERT(directory_make("/foo/bar") == -1,
+        "directory_make should reject non-root parent paths");
+
+    image_close();
+}
+
+
+
 int main(void)
 {
     CTEST_VERBOSE(1);
@@ -404,6 +511,10 @@ int main(void)
     test_mkfs_creates_root_directory();
     test_directory_open();
     test_directory_get();
+    test_namei_root();
+    test_directory_make_creates_directory();
+    test_namei_finds_root_child();
+    test_directory_make_rejects_bad_paths();
 
     CTEST_RESULTS();
     CTEST_EXIT();
